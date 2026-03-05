@@ -129,7 +129,7 @@ export function QuoteCard({ quote, onUpdate }: QuoteCardProps) {
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
-                className="p-1.5 rounded-lg text-[#CBD5E1] hover:text-[#64748B] hover:bg-[#F1F5F9] transition-all opacity-0 group-hover:opacity-100"
+                className="p-1.5 rounded-lg text-[#CBD5E1] hover:text-[#64748B] hover:bg-[#F1F5F9] transition-all lg:opacity-0 lg:group-hover:opacity-100"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
