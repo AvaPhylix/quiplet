@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search as SearchIcon, FileDown } from "lucide-react";
+import { Search as SearchIcon } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { QuoteCard } from "@/components/quotes/QuoteCard";
+import { ExportPDFButton } from "@/components/pdf/ExportPDFButton";
 import type { Quote, Child, Tag } from "@/types/database";
 
 export default function SearchPage() {
@@ -38,7 +39,7 @@ export default function SearchPage() {
 
     let dbQuery = supabase
       .from("quotes")
-      .select("*, children(*), quote_tags(*, tags(*))")
+      .select("*, children(*), quote_tags(*, tags(*)), attachments(*)")
       .eq("is_archived", false)
       .order("said_at", { ascending: false });
 
@@ -75,12 +76,6 @@ export default function SearchPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     doSearch();
-  }
-
-  async function handleExportPDF() {
-    if (quotes.length === 0) return;
-    const { exportQuotesPDF } = await import("@/lib/export-pdf");
-    exportQuotesPDF(quotes);
   }
 
   return (
@@ -188,13 +183,7 @@ export default function SearchPage() {
       {searched && quotes.length > 0 && (
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-[#64748B]">{quotes.length} quote{quotes.length !== 1 ? "s" : ""} found</p>
-          <button
-            onClick={handleExportPDF}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#6B8F71] hover:bg-[#6B8F71]/5 rounded-xl transition-colors"
-          >
-            <FileDown className="w-4 h-4" />
-            Export PDF
-          </button>
+          <ExportPDFButton quotes={quotes} />
         </div>
       )}
 
