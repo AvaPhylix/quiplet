@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Heart, MoreVertical, Edit3, Trash2, Archive, MapPin, Calendar } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { calculateAgeAtDate, formatDate } from "@/lib/utils";
-import type { Quote } from "@/types/database";
+import type { Quote, Attachment } from "@/types/database";
 import { QuoteModal } from "./QuoteModal";
 
 interface QuoteCardProps {
@@ -17,12 +17,43 @@ export function QuoteCard({ quote, onUpdate }: QuoteCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [bouncing, setBouncing] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [audioUrls, setAudioUrls] = useState<string[]>([]);
 
   const child = quote.children;
   const age =
     child?.date_of_birth
       ? calculateAgeAtDate(child.date_of_birth, quote.said_at)
       : null;
+
+  useEffect(() => {
+    async function loadAttachments() {
+      const supabase = getSupabaseBrowserClient();
+      const { data } = await supabase
+        .from("attachments")
+        .select("*")
+        .eq("quote_id", quote.id);
+      if (!data || data.length === 0) return;
+      setAttachments(data);
+
+      const images: string[] = [];
+      const audios: string[] = [];
+      for (const att of data) {
+        const { data: urlData } = supabase.storage
+          .from("attachments")
+          .getPublicUrl(att.storage_path);
+        if (att.type === "image") {
+          images.push(urlData.publicUrl);
+        } else if (att.type === "audio") {
+          audios.push(urlData.publicUrl);
+        }
+      }
+      setImageUrls(images);
+      setAudioUrls(audios);
+    }
+    loadAttachments();
+  }, [quote.id]);
 
   async function toggleFavorite() {
     const next = !isFav;
@@ -54,17 +85,32 @@ export function QuoteCard({ quote, onUpdate }: QuoteCardProps) {
 
   return (
     <>
-      <div className="bg-white rounded-2xl p-6 shadow-[0_2px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 group">
+      <div className="bg-white rounded-2xl p-6 shadow-[0_2px_20px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 group relative">
+        {/* Emoji Badge */}
+        {quote.emoji && (
+          <div className="absolute -top-2 -right-2 w-8 h-8 bg-white rounded-full shadow-md flex items-center justify-center text-lg z-10">
+            {quote.emoji}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             {child && (
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
-                style={{ backgroundColor: child.theme_color || "#C4B5E0" }}
-              >
-                {child.name.charAt(0).toUpperCase()}
-              </div>
+              child.avatar_url ? (
+                <img
+                  src={child.avatar_url}
+                  alt={child.name}
+                  className="w-9 h-9 rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                  style={{ backgroundColor: child.theme_color || "#C4B5E0" }}
+                >
+                  {child.name.charAt(0).toUpperCase()}
+                </div>
+              )
             )}
             <div>
               <p className="text-sm font-semibold">{child?.name}</p>
@@ -117,6 +163,29 @@ export function QuoteCard({ quote, onUpdate }: QuoteCardProps) {
         <p className="font-[family-name:var(--font-playfair)] text-xl leading-relaxed text-[#334155] mb-4">
           &ldquo;{quote.quote_text}&rdquo;
         </p>
+
+        {/* Attached Images */}
+        {imageUrls.length > 0 && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {imageUrls.map((url, i) => (
+              <img
+                key={i}
+                src={url}
+                alt={`Attachment ${i + 1}`}
+                className="w-24 h-24 object-cover rounded-xl"
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Audio Players */}
+        {audioUrls.map((url, i) => (
+          <div key={i} className="mb-4">
+            <audio controls className="w-full h-10 rounded-lg" preload="metadata">
+              <source src={url} type="audio/webm" />
+            </audio>
+          </div>
+        ))}
 
         {/* Context */}
         {quote.context && (

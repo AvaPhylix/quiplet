@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, FileDown } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { QuoteCard } from "@/components/quotes/QuoteCard";
 import type { Quote, Child, Tag } from "@/types/database";
@@ -12,6 +12,8 @@ export default function SearchPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [filterChild, setFilterChild] = useState("");
   const [filterTag, setFilterTag] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -46,6 +48,15 @@ export default function SearchPage() {
     if (filterChild) {
       dbQuery = dbQuery.eq("child_id", filterChild);
     }
+    if (dateFrom) {
+      dbQuery = dbQuery.gte("said_at", new Date(dateFrom).toISOString());
+    }
+    if (dateTo) {
+      // End of day
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      dbQuery = dbQuery.lte("said_at", endDate.toISOString());
+    }
 
     const { data } = await dbQuery;
     let results = (data ?? []) as unknown as Quote[];
@@ -59,11 +70,17 @@ export default function SearchPage() {
 
     setQuotes(results);
     setLoading(false);
-  }, [query, filterChild, filterTag]);
+  }, [query, filterChild, filterTag, dateFrom, dateTo]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     doSearch();
+  }
+
+  async function handleExportPDF() {
+    if (quotes.length === 0) return;
+    const { exportQuotesPDF } = await import("@/lib/export-pdf");
+    exportQuotesPDF(quotes);
   }
 
   return (
@@ -86,8 +103,8 @@ export default function SearchPage() {
         </div>
       </form>
 
-      {/* Filters */}
-      <div className="flex gap-3 mb-6 flex-wrap">
+      {/* Child Filter */}
+      <div className="flex gap-3 mb-4 flex-wrap">
         <select
           value={filterChild}
           onChange={(e) => { setFilterChild(e.target.value); }}
@@ -98,16 +115,6 @@ export default function SearchPage() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
-        <select
-          value={filterTag}
-          onChange={(e) => { setFilterTag(e.target.value); }}
-          className="px-4 py-2 rounded-xl border border-[#E2E8F0] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6B8F71]/30"
-        >
-          <option value="">All Tags</option>
-          {tags.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
         <button
           onClick={doSearch}
           className="px-5 py-2 bg-[#6B8F71] text-white rounded-xl text-sm font-semibold hover:bg-[#5A7D60] transition-colors"
@@ -115,6 +122,81 @@ export default function SearchPage() {
           Search
         </button>
       </div>
+
+      {/* Tag Carousel */}
+      {tags.length > 0 && (
+        <div className="mb-4">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <button
+              onClick={() => setFilterTag("")}
+              className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                !filterTag
+                  ? "bg-[#C8956C] text-white"
+                  : "bg-white text-[#64748B] border border-[#E2E8F0] hover:border-[#CBD5E1]"
+              }`}
+            >
+              All Tags
+            </button>
+            {tags.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setFilterTag(filterTag === t.id ? "" : t.id)}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  filterTag === t.id
+                    ? "bg-[#C8956C] text-white"
+                    : "bg-white text-[#64748B] border border-[#E2E8F0] hover:border-[#CBD5E1]"
+                }`}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Date Range Picker */}
+      <div className="flex gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-[#64748B]">From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-[#E2E8F0] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6B8F71]/30 focus:border-[#6B8F71]"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-[#64748B]">To</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-[#E2E8F0] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#6B8F71]/30 focus:border-[#6B8F71]"
+          />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="px-3 py-2 text-sm text-[#64748B] hover:text-[#334155] transition-colors"
+          >
+            Clear dates
+          </button>
+        )}
+      </div>
+
+      {/* Results Header */}
+      {searched && quotes.length > 0 && (
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-[#64748B]">{quotes.length} quote{quotes.length !== 1 ? "s" : ""} found</p>
+          <button
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#6B8F71] hover:bg-[#6B8F71]/5 rounded-xl transition-colors"
+          >
+            <FileDown className="w-4 h-4" />
+            Export PDF
+          </button>
+        </div>
+      )}
 
       {/* Results */}
       {loading ? (

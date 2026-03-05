@@ -1,7 +1,7 @@
 {
   "name": "quiplet",
   "version": "1.0.0",
-  "description": "Quiplet \u2014 capture the hilarious things kids say. A beautiful digital scrapbook for parents.",
+  "description": "Quiplet — capture the hilarious things kids say. A beautiful digital scrapbook for parents.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -23,6 +23,7 @@
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^25.3.3",
     "@types/react": "^19.2.14",
+    "jspdf": "^4.2.0",
     "lucide-react": "^0.577.0",
     "next": "^16.1.6",
     "postcss": "^8.5.8",

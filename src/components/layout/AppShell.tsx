@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { MessageCircleHeart, Home, Users, Heart, Search, Settings, Tv, Plus } from "lucide-react";
+import { MessageCircleHeart, Home, Users, Heart, Search, Settings, Tv, Plus, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { QuoteModal } from "@/components/quotes/QuoteModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/children", icon: Users, label: "Kids" },
   { href: "/favorites", icon: Heart, label: "Favorites" },
   { href: "/search", icon: Search, label: "Search" },
+  { href: "/family", icon: UserPlus, label: "Family" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

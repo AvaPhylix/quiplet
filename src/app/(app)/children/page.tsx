@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, X, Loader2, Edit3, Trash2 } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Plus, X, Loader2, Edit3, Trash2, Camera } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { calculateAge, CHILD_COLORS } from "@/lib/utils";
 import type { Child } from "@/types/database";
@@ -15,6 +15,9 @@ export default function ChildrenPage() {
   const [dob, setDob] = useState("");
   const [color, setColor] = useState(CHILD_COLORS[0].value);
   const [saving, setSaving] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   async function loadChildren() {
     const supabase = getSupabaseBrowserClient();
@@ -32,6 +35,8 @@ export default function ChildrenPage() {
     setName("");
     setDob("");
     setColor(CHILD_COLORS[0].value);
+    setAvatarFile(null);
+    setAvatarPreview(null);
     setShowForm(true);
   }
 
@@ -40,7 +45,18 @@ export default function ChildrenPage() {
     setName(child.name);
     setDob(child.date_of_birth ?? "");
     setColor(child.theme_color);
+    setAvatarFile(null);
+    setAvatarPreview(child.avatar_url ?? null);
     setShowForm(true);
+  }
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -52,10 +68,28 @@ export default function ChildrenPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    let avatarUrl: string | null = editChild?.avatar_url ?? null;
+
+    // Upload avatar if new file selected
+    if (avatarFile) {
+      const ext = avatarFile.name.split(".").pop() || "jpg";
+      const path = `${user.id}/avatars/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("attachments")
+        .upload(path, avatarFile);
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage
+          .from("attachments")
+          .getPublicUrl(path);
+        avatarUrl = urlData.publicUrl;
+      }
+    }
+
     const payload = {
       name: name.trim(),
       date_of_birth: dob || null,
       theme_color: color,
+      avatar_url: avatarUrl,
     };
 
     if (editChild) {
@@ -120,12 +154,20 @@ export default function ChildrenPage() {
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold"
-                    style={{ backgroundColor: child.theme_color }}
-                  >
-                    {child.name.charAt(0).toUpperCase()}
-                  </div>
+                  {child.avatar_url ? (
+                    <img
+                      src={child.avatar_url}
+                      alt={child.name}
+                      className="w-14 h-14 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold"
+                      style={{ backgroundColor: child.theme_color }}
+                    >
+                      {child.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <h3 className="text-lg font-semibold">{child.name}</h3>
                     {child.date_of_birth && (
@@ -169,6 +211,41 @@ export default function ChildrenPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Avatar Upload */}
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="relative group"
+                >
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="Avatar"
+                      className="w-20 h-20 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-2xl font-bold"
+                      style={{ backgroundColor: color }}
+                    >
+                      {name ? name.charAt(0).toUpperCase() : "?"}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/30 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-5 h-5 text-white" />
+                  </div>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-center text-[#94A3B8]">Tap to add photo</p>
+
               <div>
                 <label className="block text-sm font-medium mb-1.5">Name</label>
                 <input

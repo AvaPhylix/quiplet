@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { X, Loader2, ImagePlus, Check } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { AudioRecorder } from "./AudioRecorder";
 import type { Child, Tag } from "@/types/database";
 
 interface QuoteModalProps {
@@ -35,6 +36,16 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
   const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Image uploads
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Audio recording
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -51,6 +62,32 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
     }
     loadData();
   }, [editQuote]);
+
+  const handleImageFiles = useCallback((files: FileList | File[]) => {
+    const newFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (newFiles.length === 0) return;
+    setImageFiles((prev) => [...prev, ...newFiles]);
+    newFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  function removeImage(index: number) {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      handleImageFiles(e.dataTransfer.files);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -109,10 +146,69 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
               .insert({ quote_id: quoteId, tag_id: tag.id });
           }
         }
+
+        // Upload images
+        for (const file of imageFiles) {
+          const ext = file.name.split(".").pop() || "jpg";
+          const path = `${user.id}/${quoteId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("attachments")
+            .upload(path, file);
+          if (!uploadErr) {
+            await supabase.from("attachments").insert({
+              quote_id: quoteId,
+              type: "image",
+              storage_path: path,
+              file_name: file.name,
+              mime_type: file.type,
+            });
+          }
+        }
+
+        // Upload audio
+        if (audioBlob) {
+          const path = `${user.id}/${quoteId}/${Date.now()}-voice.webm`;
+          const { error: uploadErr } = await supabase.storage
+            .from("attachments")
+            .upload(path, audioBlob);
+          if (!uploadErr) {
+            await supabase.from("attachments").insert({
+              quote_id: quoteId,
+              type: "audio",
+              storage_path: path,
+              file_name: "voice-memo.webm",
+              mime_type: "audio/webm",
+            });
+          }
+        }
+
+        // Auto-emoji (only for new quotes)
+        if (!editQuote) {
+          try {
+            const resp = await fetch("/api/auto-emoji", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: quoteText }),
+            });
+            if (resp.ok) {
+              const { emoji, bg_gradient } = await resp.json();
+              await supabase
+                .from("quotes")
+                .update({ emoji, bg_gradient })
+                .eq("id", quoteId);
+            }
+          } catch {
+            // Non-critical, ignore
+          }
+        }
       }
 
-      onClose();
-      window.location.reload();
+      // Show success animation
+      setShowSuccess(true);
+      setTimeout(() => {
+        onClose();
+        window.location.reload();
+      }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
       setSaving(false);
@@ -127,11 +223,33 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
     setNewTag("");
   }
 
+  if (showSuccess) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+        <div className="relative flex flex-col items-center justify-center">
+          <div className="w-20 h-20 bg-[#6B8F71] rounded-full flex items-center justify-center animate-[scale-bounce_0.5s_ease-out]"
+            style={{ animation: "scale-bounce 0.5s ease-out" }}>
+            <Check className="w-10 h-10 text-white" />
+          </div>
+          <p className="mt-4 text-white font-semibold text-lg">Saved!</p>
+        </div>
+        <style>{`
+          @keyframes scale-bounce {
+            0% { transform: scale(0); }
+            60% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl">
-        <div className="sticky top-0 bg-white border-b border-[#F1F5F9] px-6 py-4 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 bg-white border-b border-[#F1F5F9] px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <h2 className="text-lg font-bold">
             {editQuote ? "Edit Quote" : "New Quote"}
           </h2>
@@ -263,6 +381,65 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
                 Add
               </button>
             </div>
+          </div>
+
+          {/* Image Upload Dropzone */}
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Photos</label>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl px-4 py-6 text-center cursor-pointer transition-all ${
+                dragOver
+                  ? "border-[#6B8F71] bg-[#6B8F71]/5"
+                  : "border-[#E2E8F0] hover:border-[#CBD5E1] hover:bg-[#F8FAFC]"
+              }`}
+            >
+              <ImagePlus className="w-6 h-6 text-[#94A3B8] mx-auto mb-2" />
+              <p className="text-sm text-[#64748B]">
+                Drop images here or tap to browse
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => e.target.files && handleImageFiles(e.target.files)}
+              />
+            </div>
+            {imagePreviews.length > 0 && (
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {imagePreviews.map((src, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={src}
+                      alt={`Upload ${i + 1}`}
+                      className="w-16 h-16 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Audio Recorder */}
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Voice Memo</label>
+            <AudioRecorder
+              onRecordingComplete={(blob) => setAudioBlob(blob)}
+              onRemove={() => setAudioBlob(null)}
+              hasRecording={!!audioBlob}
+            />
           </div>
 
           <button
