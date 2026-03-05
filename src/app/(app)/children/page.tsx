@@ -49,6 +49,9 @@ export default function ChildrenPage() {
     setSaving(true);
 
     const supabase = getSupabaseBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     const payload = {
       name: name.trim(),
       date_of_birth: dob || null,
@@ -58,7 +61,7 @@ export default function ChildrenPage() {
     if (editChild) {
       await supabase.from("children").update(payload).eq("id", editChild.id);
     } else {
-      await supabase.from("children").insert(payload);
+      await supabase.from("children").insert({ ...payload, user_id: user.id });
     }
 
     setSaving(false);

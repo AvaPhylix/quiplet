@@ -59,6 +59,8 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
     setError("");
 
     const supabase = getSupabaseBrowserClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
     try {
       const quoteData = {
@@ -80,7 +82,7 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
       } else {
         const { data, error: err } = await supabase
           .from("quotes")
-          .insert(quoteData)
+          .insert({ ...quoteData, user_id: user.id })
           .select("id")
           .single();
         if (err) throw err;
@@ -96,7 +98,7 @@ export function QuoteModal({ onClose, editQuote }: QuoteModalProps) {
           if (!tag) {
             const { data } = await supabase
               .from("tags")
-              .insert({ name: tagName })
+              .insert({ name: tagName, user_id: user.id })
               .select()
               .single();
             if (data) tag = data;
