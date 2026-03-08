@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { MessageCircleHeart, Home, Users, Heart, Search, Settings, Tv, Plus, UserPlus } from "lucide-react";
+import { MessageCircleHeart, Home, Users, Heart, Search, Settings, Tv, Plus, UserPlus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { QuoteModal } from "@/components/quotes/QuoteModal";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -86,9 +86,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Plus className="w-5 h-5" />
             New Quote
           </button>
+          <Link
+            href="/pricing"
+            className="w-full flex items-center justify-center gap-2 text-[#6B8F71] text-sm font-medium mt-3 hover:underline py-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            Upgrade to Pro
+          </Link>
           <button
             onClick={handleSignOut}
-            className="w-full text-[#64748B] text-sm mt-3 hover:text-[#334155] transition-colors py-2"
+            className="w-full text-[#64748B] text-sm mt-1 hover:text-[#334155] transition-colors py-2"
           >
             Sign out
           </button>
